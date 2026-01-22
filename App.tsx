@@ -16,7 +16,7 @@ const App: React.FC = () => {
     return (
         <Router>
             <Routes>
-                <Route path="/" element={<LandingPage onStart={() => window.location.href = '/login'} />} />
+                <Route path="/" element={<LandingPage />} />
                 <Route path="/login" element={<Login />} />
                 <Route
                     path="/app/*"

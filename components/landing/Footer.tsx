@@ -51,7 +51,7 @@ export const Footer = () => {
 
             {/* Floating WhatsApp Button */}
             <a
-                href="https://wa.me/YOUR_NUMBER"
+                href="https://wa.me/923022922242?text=i%20am%20intrested%20in%20Ayzelify%20Ai%20app%20%2C%20please%20provide%20me%20more%20details%20on%20how%20to%20buy."
                 target="_blank"
                 rel="noopener noreferrer"
                 className="fixed bottom-8 right-8 z-50 p-4 bg-[#25D366] text-white rounded-full shadow-[0_0_20px_rgba(37,211,102,0.4)] hover:scale-110 transition-transform active:scale-90 flex items-center justify-center"

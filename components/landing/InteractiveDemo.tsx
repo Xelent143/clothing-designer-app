@@ -91,7 +91,7 @@ const ComparisonSlide = ({ item }: { item: DemoItem }) => {
             </div>
 
             {/* App Window Container */}
-            <div className="relative w-full max-w-5xl mx-auto aspect-[16/9] rounded-xl overflow-hidden shadow-2xl border border-white/10 group bg-[#0A0A0A] flex flex-col">
+            <div className="relative w-full max-w-5xl mx-auto aspect-[3/4] md:aspect-[16/9] rounded-xl overflow-hidden shadow-2xl border border-white/10 group bg-[#0A0A0A] flex flex-col">
 
                 {/* Window Header */}
                 <div className="h-12 bg-neutral-900/90 backdrop-blur-md border-b border-white/5 flex items-center px-4 space-x-2 z-20">
@@ -112,11 +112,11 @@ const ComparisonSlide = ({ item }: { item: DemoItem }) => {
                         <img
                             src={item.beforeImage}
                             alt={item.beforeLabel}
-                            className="absolute inset-0 w-full h-full object-contain opacity-60 grayscale hover:grayscale-0 transition-all duration-700"
+                            className="absolute inset-0 w-full h-full object-cover md:object-contain opacity-60 grayscale hover:grayscale-0 transition-all duration-700"
                         />
                         {/* Label Helper (Top Left) */}
-                        <div className="absolute top-8 left-8 bg-black/50 backdrop-blur-md border border-white/10 px-4 py-2 rounded-full z-10">
-                            <span className="text-gray-300 font-bold text-sm tracking-widest uppercase">{item.beforeLabel}</span>
+                        <div className="absolute top-4 left-4 md:top-8 md:left-8 bg-black/50 backdrop-blur-md border border-white/10 px-3 py-1.5 md:px-4 md:py-2 rounded-full z-10">
+                            <span className="text-gray-300 font-bold text-[10px] md:text-sm tracking-widest uppercase">{item.beforeLabel}</span>
                         </div>
                     </div>
 
@@ -128,11 +128,11 @@ const ComparisonSlide = ({ item }: { item: DemoItem }) => {
                         <img
                             src={item.afterImage}
                             alt={item.afterLabel}
-                            className="absolute inset-0 w-full h-full object-contain object-center"
+                            className="absolute inset-0 w-full h-full object-cover md:object-contain object-center"
                         />
                         {/* Label Helper (Top Right) */}
-                        <div className="absolute top-8 right-8 bg-brand-cyan/20 backdrop-blur-md border border-brand-cyan/50 px-4 py-2 rounded-full z-10">
-                            <span className="text-brand-cyan font-bold text-sm tracking-widest uppercase">{item.afterLabel}</span>
+                        <div className="absolute top-4 right-4 md:top-8 md:right-8 bg-brand-cyan/20 backdrop-blur-md border border-brand-cyan/50 px-3 py-1.5 md:px-4 md:py-2 rounded-full z-10">
+                            <span className="text-brand-cyan font-bold text-[10px] md:text-sm tracking-widest uppercase">{item.afterLabel}</span>
                         </div>
                     </motion.div>
 

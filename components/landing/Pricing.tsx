@@ -74,7 +74,6 @@ export const Pricing = () => {
                                 <h3 className="text-xl font-bold text-gray-200 mb-2">{plan.name}</h3>
                                 <div className="flex items-baseline gap-1">
                                     <span className="text-4xl font-bold text-white">${plan.priceUSD}</span>
-                                    <span className="text-sm text-gray-500">/mo</span>
                                 </div>
                                 <div className="text-sm text-gray-500 mt-1">approx. PKR {plan.pricePKR}</div>
                             </div>
