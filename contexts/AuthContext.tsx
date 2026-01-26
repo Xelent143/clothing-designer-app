@@ -58,23 +58,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             if (data) {
                 const profileData = data as Profile;
 
-                // Security Check: Is active?
-                if (profileData.is_active === false) {
-                    await supabase.auth.signOut();
-                    alert("Your account has been deactivated. Please contact support.");
-                    return null;
-                }
-
-                // Security Check: Is expired?
-                if (profileData.expiry_date) {
-                    const expiry = new Date(profileData.expiry_date);
-                    const now = new Date();
-                    if (expiry < now) {
-                        await supabase.auth.signOut();
-                        alert(`Your account access expired on ${expiry.toLocaleDateString()}. Please contact admin for renewal.`);
-                        return null;
-                    }
-                }
+                // Security Checks are now handled by the UI (AccountLockedModal) based on profile data
+                // We do NOT sign out automatically so the user can see the specific reason (credits/expiry)
 
                 setProfile(profileData);
             }

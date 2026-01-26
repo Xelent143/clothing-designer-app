@@ -33,6 +33,7 @@ import {
 import { exportTechPackPDF } from './services/pdfService';
 import { webhookService } from './services/webhookService';
 import { incrementGenerations } from './services/profileService';
+import { uploadToImgBB, generateUniqueFilename } from './services/imgbbService';
 
 // --- Category Icons ---
 // Updated icon components to accept className prop for styling
@@ -337,6 +338,10 @@ const App: React.FC = () => {
             label: "Concept Prototype",
             image: c.imageBase64
           });
+
+          // ImgBB Upload
+          const filename = generateUniqueFilename(profile?.full_name || user?.email || 'user', `concept-${idx + 1}`);
+          uploadToImgBB(c.imageBase64, filename);
         }
       });
 
@@ -365,10 +370,22 @@ const App: React.FC = () => {
 
       // Webhook Integration: Send Production Assets
       if (assets) {
-        if (assets.front) webhookService.sendImageToWebhook({ projectName: concept.description.substring(0, 20), fileName: `${selectedCategory}_Front`, label: "Front View", image: assets.front });
-        if (assets.back) webhookService.sendImageToWebhook({ projectName: concept.description.substring(0, 20), fileName: `${selectedCategory}_Back`, label: "Back View", image: assets.back });
-        if (assets.closeup) webhookService.sendImageToWebhook({ projectName: concept.description.substring(0, 20), fileName: `${selectedCategory}_Detail`, label: "Detail Collage", image: assets.closeup });
-        if (assets.lifestyle) webhookService.sendImageToWebhook({ projectName: concept.description.substring(0, 20), fileName: `${selectedCategory}_Lifestyle`, label: "Lifestyle View", image: assets.lifestyle });
+        if (assets.front) {
+          webhookService.sendImageToWebhook({ projectName: concept.description.substring(0, 20), fileName: `${selectedCategory}_Front`, label: "Front View", image: assets.front });
+          uploadToImgBB(assets.front, generateUniqueFilename(profile?.full_name || 'user', 'front'));
+        }
+        if (assets.back) {
+          webhookService.sendImageToWebhook({ projectName: concept.description.substring(0, 20), fileName: `${selectedCategory}_Back`, label: "Back View", image: assets.back });
+          uploadToImgBB(assets.back, generateUniqueFilename(profile?.full_name || 'user', 'back'));
+        }
+        if (assets.closeup) {
+          webhookService.sendImageToWebhook({ projectName: concept.description.substring(0, 20), fileName: `${selectedCategory}_Detail`, label: "Detail Collage", image: assets.closeup });
+          uploadToImgBB(assets.closeup, generateUniqueFilename(profile?.full_name || 'user', 'detail'));
+        }
+        if (assets.lifestyle) {
+          webhookService.sendImageToWebhook({ projectName: concept.description.substring(0, 20), fileName: `${selectedCategory}_Lifestyle`, label: "Lifestyle View", image: assets.lifestyle });
+          uploadToImgBB(assets.lifestyle, generateUniqueFilename(profile?.full_name || 'user', 'lifestyle'));
+        }
       }
 
       if (profile?.id) {
@@ -388,8 +405,14 @@ const App: React.FC = () => {
       setGeneratedGhostImages(results);
 
       // Webhook Integration: Send Ghost Mannequin
-      if (results.front) webhookService.sendImageToWebhook({ projectName: "Ghost Mannequin", fileName: "Ghost_Front", label: "Ghost Mannequin Front", image: results.front });
-      if (results.back) webhookService.sendImageToWebhook({ projectName: "Ghost Mannequin", fileName: "Ghost_Back", label: "Ghost Mannequin Back", image: results.back });
+      if (results.front) {
+        webhookService.sendImageToWebhook({ projectName: "Ghost Mannequin", fileName: "Ghost_Front", label: "Ghost Mannequin Front", image: results.front });
+        uploadToImgBB(results.front, generateUniqueFilename(profile?.full_name || 'user', 'ghost-front'));
+      }
+      if (results.back) {
+        webhookService.sendImageToWebhook({ projectName: "Ghost Mannequin", fileName: "Ghost_Back", label: "Ghost Mannequin Back", image: results.back });
+        uploadToImgBB(results.back, generateUniqueFilename(profile?.full_name || 'user', 'ghost-back'));
+      }
 
       if (profile?.id) {
         const count = (results.front ? 1 : 0) + (results.back ? 1 : 0);
@@ -411,6 +434,7 @@ const App: React.FC = () => {
       // Webhook Integration: Send Banners
       results.forEach((b, idx) => {
         webhookService.sendImageToWebhook({ projectName: "Marketing Banner", fileName: `Banner_${idx + 1}`, label: "Marketing Banner", image: b });
+        uploadToImgBB(b, generateUniqueFilename(profile?.full_name || 'user', `banner-${idx + 1}`));
       });
 
       if (profile?.id) {
@@ -445,6 +469,7 @@ const App: React.FC = () => {
         label: `Photoshoot ${activeView}`,
         image: result
       });
+      uploadToImgBB(result, generateUniqueFilename(profile?.full_name || 'user', `photoshoot-${activeView.replace(/ /g, '-')}`));
 
       if (profile?.id) {
         await incrementGenerations(profile.id, 1);
@@ -532,6 +557,9 @@ const App: React.FC = () => {
         if (profile?.id) {
           await incrementGenerations(profile.id, 1);
         }
+
+        // ImgBB Upload
+        uploadToImgBB(resultB64, generateUniqueFilename(profile?.full_name || 'user', 'rebrand'));
 
         setStep(AppStep.REBRAND_RESULTS);
       }
@@ -630,6 +658,9 @@ const App: React.FC = () => {
               <div className="flex flex-col">
                 <img src="/images/logo-brand.png" alt="Ayzelify" className="h-10 md:h-12 object-contain mb-1" />
                 <span className="text-[8px] md:text-[9px] font-mono tracking-[0.4em] text-cyan-500/60 uppercase">System Core v2.04</span>
+                {profile?.full_name && (
+                  <span className="text-[10px] text-cyan-400 font-bold uppercase tracking-widest mt-1">Welcome, {profile.full_name}</span>
+                )}
               </div>
             </div>
 

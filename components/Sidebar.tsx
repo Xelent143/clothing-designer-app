@@ -61,7 +61,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <button onClick={onClose} className="md:hidden text-gray-400 hover:text-white">✕</button>
                 </div>
 
-                <nav className="flex-grow px-4 space-y-2">
+                <nav className="flex-grow px-4 space-y-2 overflow-y-auto custom-scrollbar min-h-0">
                     {navItems.map((item) => (
                         <button
                             key={item.mode}
