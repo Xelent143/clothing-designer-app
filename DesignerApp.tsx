@@ -375,8 +375,6 @@ const App: React.FC = () => {
       const assets = await generateProductionAssets(concept.imageBase64, concept.description, selectedCategory, selectedGender, (m, p) => { setLoadingMsgSub(m); setLoadingProgress(p); }, profile?.branding, profile?.api_keys?.gemini);
       setProductionAssets(assets);
 
-<<<<<<< HEAD
-=======
       // Webhook Integration: Send Production Assets
       if (assets) {
         if (assets.front) {
@@ -392,8 +390,6 @@ const App: React.FC = () => {
           uploadToImgBB(assets.lifestyle, generateUniqueFilename(profile?.full_name || 'user', 'lifestyle'));
         }
       }
-
->>>>>>> a56112030e92884ccee3f7958ae9af887c533a9f
       if (profile?.id) {
         await incrementGenerations(profile.id, 5); // Default production set is 5 views
       }
