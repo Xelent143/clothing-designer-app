@@ -3,8 +3,8 @@ import { AppStep, Gender, CATEGORIES, Concept, ProductionAssets, UserProfile, SO
 import { Profile } from "../contexts/AuthContext";
 
 // MODELS
-const TEXT_MODEL = 'gemini-2.0-flash-exp';
-const IMAGE_MODEL = 'gemini-3-pro-image-preview'; // Reverting to the preview name that works in this environment
+const TEXT_MODEL = 'gemini-3-pro-preview';
+const IMAGE_MODEL = 'gemini-3-pro-image-preview';
 
 // Helper to get client with current key
 const getClient = (providedApiKey?: string) => {
@@ -359,7 +359,7 @@ export const generateConceptDescriptions = async (category: string, gender: Gend
     const response = await generateWithFallback(
       ai,
       TEXT_MODEL,
-      'gemini-1.5-flash',
+      'gemini-pro',
       { parts },
       {
         responseMimeType: "application/json",
@@ -404,7 +404,7 @@ export const generateConceptImage = async (conceptDesc: string, category: string
     parts.push({ text: imagePrompt });
   }
 
-  const response = await generateWithFallback(ai, IMAGE_MODEL, IMAGE_MODEL, { parts }, { imageConfig: { aspectRatio: "4:3" } });
+  const response = await generateWithFallback(ai, IMAGE_MODEL, 'gemini-1.5-flash', { parts }, { imageConfig: { aspectRatio: "4:3" } });
   return response.response.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data || "";
 };
 
@@ -432,7 +432,7 @@ export const generateProductionAssets = async (
       fullPrompt += ` Integrate the provided brand logo creatively on the ${action}.`;
     }
 
-    const response = await generateWithFallback(ai, IMAGE_MODEL, IMAGE_MODEL, { parts }, { imageConfig: { aspectRatio: aspectRatio as any, imageSize: usePro ? "2K" : undefined } });
+    const response = await generateWithFallback(ai, IMAGE_MODEL, 'gemini-1.5-flash', { parts }, { imageConfig: { aspectRatio: aspectRatio as any, imageSize: usePro ? "2K" : undefined } });
     return response.response.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data || refImage;
   };
 
@@ -543,7 +543,7 @@ export const regenerateProductionAsset = async (
     fullPrompt += ` Ensure the provided brand logo is correctly integrated.`;
   }
 
-  const response = await generateWithFallback(ai, IMAGE_MODEL, IMAGE_MODEL, { parts }, { imageConfig: { aspectRatio: "1:1" } });
+  const response = await generateWithFallback(ai, IMAGE_MODEL, 'gemini-1.5-flash', { parts }, { imageConfig: { aspectRatio: "1:1" } });
   return response.response.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data || "";
 };
 
@@ -565,7 +565,7 @@ export const generateImageRevision = async (baseImage: string, prompt: string, a
     parts[0].text += `\n\nIMPORTANT: Use the second attached image as a visual reference (e.g., logo, pattern, or style guide) for the modification.`;
   }
 
-  const response = await generateWithFallback(ai, IMAGE_MODEL, IMAGE_MODEL, { parts }, {
+  const response = await generateWithFallback(ai, IMAGE_MODEL, 'gemini-1.5-flash', { parts }, {
     imageConfig: { aspectRatio: "1:1", imageSize: "2K" }
   });
 
@@ -589,7 +589,7 @@ export const editGarmentWithAI = async (baseImage: string, maskImage: string, pr
   The mask indicates where the changes should occur. Maintain stylistic continuity with the rest of the garment.
   CRITICAL: Professional fashion studio quality. High resolution output. No real-world brand logos.`;
 
-  const response = await generateWithFallback(ai, IMAGE_MODEL, IMAGE_MODEL, {
+  const response = await generateWithFallback(ai, IMAGE_MODEL, 'gemini-1.5-flash', {
     parts: [
       { text: fullPrompt },
       { inlineData: { mimeType: baseMime, data: baseData } },
@@ -653,7 +653,7 @@ export const generateModelPhotoshoot = async (
     if (effectiveLogo) parts.push({ inlineData: parseDataUrl(effectiveLogo) });
   }
 
-  const response = await generateWithFallback(ai, IMAGE_MODEL, IMAGE_MODEL, { parts }, { imageConfig: { aspectRatio: "3:4", imageSize: "2K" } });
+  const response = await generateWithFallback(ai, IMAGE_MODEL, 'gemini-1.5-flash', { parts }, { imageConfig: { aspectRatio: "3:4", imageSize: "2K" } });
   return response.response.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data || "";
 };
 
@@ -851,7 +851,7 @@ export const generateHelpAssistantResponse = async (query: string, apiKey?: stri
     const response = await generateWithFallback(
       ai,
       TEXT_MODEL,
-      'gemini-1.5-flash',
+      'gemini-pro',
       {
         parts: [
           { text: systemPrompt },
@@ -911,7 +911,7 @@ export const generateSocialPost = async (
     const response = await generateWithFallback(
       ai,
       TEXT_MODEL,
-      'gemini-1.5-flash',
+      'gemini-pro',
       {
         parts: [
           { text: prompt },
