@@ -404,7 +404,7 @@ export const generateConceptImage = async (conceptDesc: string, category: string
     parts.push({ text: imagePrompt });
   }
 
-  const response = await generateWithFallback(ai, IMAGE_MODEL, 'gemini-2.0-flash-exp', { parts }, { imageConfig: { aspectRatio: "4:3" } });
+  const response = await generateWithFallback(ai, IMAGE_MODEL, 'gemini-2.5-flash-image', { parts }, { imageConfig: { aspectRatio: "4:3" } });
   return response.response.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data || "";
 };
 
@@ -432,7 +432,7 @@ export const generateProductionAssets = async (
       fullPrompt += ` Integrate the provided brand logo creatively on the ${action}.`;
     }
 
-    const response = await generateWithFallback(ai, IMAGE_MODEL, 'gemini-2.0-flash-exp', { parts }, { imageConfig: { aspectRatio: aspectRatio as any, imageSize: usePro ? "2K" : undefined } });
+    const response = await generateWithFallback(ai, IMAGE_MODEL, 'gemini-2.5-flash-image', { parts }, { imageConfig: { aspectRatio: aspectRatio as any, imageSize: usePro ? "2K" : undefined } });
     return response.response.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data || refImage;
   };
 
@@ -543,7 +543,7 @@ export const regenerateProductionAsset = async (
     fullPrompt += ` Ensure the provided brand logo is correctly integrated.`;
   }
 
-  const response = await generateWithFallback(ai, IMAGE_MODEL, 'gemini-2.0-flash-exp', { parts }, { imageConfig: { aspectRatio: "1:1" } });
+  const response = await generateWithFallback(ai, IMAGE_MODEL, 'gemini-2.5-flash-image', { parts }, { imageConfig: { aspectRatio: "1:1" } });
   return response.response.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data || "";
 };
 
@@ -653,7 +653,7 @@ export const generateModelPhotoshoot = async (
     if (effectiveLogo) parts.push({ inlineData: parseDataUrl(effectiveLogo) });
   }
 
-  const response = await generateWithFallback(ai, IMAGE_MODEL, 'gemini-2.0-flash-exp', { parts }, { imageConfig: { aspectRatio: "3:4", imageSize: "2K" } });
+  const response = await generateWithFallback(ai, IMAGE_MODEL, 'gemini-2.5-flash-image', { parts }, { imageConfig: { aspectRatio: "3:4", imageSize: "2K" } });
   return response.response.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data || "";
 };
 
@@ -1009,7 +1009,7 @@ export const generateMasterGridImage = async (trendPrompt: TrendPrompt, category
   NO REAL LOGOS. Use abstract branding if needed.
   `;
 
-  const response = await generateWithFallback(ai, IMAGE_MODEL, 'gemini-2.0-flash-exp', { parts: [{ text: prompt }] }, { imageConfig: { aspectRatio: "1:1", imageSize: "2K" } });
+  const response = await generateWithFallback(ai, IMAGE_MODEL, 'gemini-2.5-flash-image', { parts: [{ text: prompt }] }, { imageConfig: { aspectRatio: "1:1", imageSize: "2K" } });
   return response.response.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data || "";
 };
 
@@ -1059,7 +1059,7 @@ export const processMasterGridToAssets = async (gridImage: string, trendPrompt: 
   const lifestyleRes = await generateWithFallback(
     ai,
     IMAGE_MODEL,
-    'gemini-2.0-flash-exp',
+    'gemini-2.5-flash-image',
     { parts: [{ text: lifestylePrompt }, { inlineData: { mimeType, data } }] },
     { imageConfig: { aspectRatio: "3:4" } }
   );
