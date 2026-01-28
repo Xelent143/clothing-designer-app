@@ -46,6 +46,18 @@
 
   --animate-spin-slow: spin-slow 12s linear infinite;
   --animate-spin-slow-reverse: spin-slow-reverse 12s linear infinite;
+
+  @keyframes marquee {
+    0% {
+      transform: translateX(0);
+    }
+
+    100% {
+      transform: translateX(-50%);
+    }
+  }
+
+  --animate-marquee: marquee 120s linear infinite;
 }
 
 /* Utilities */

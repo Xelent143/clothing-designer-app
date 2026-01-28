@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { adminService } from '../services/adminService';
+import { announcementService } from '../services/announcementService';
 import { Profile } from '../contexts/AuthContext';
 import { Button } from './Button';
 
@@ -12,6 +13,36 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [creditInputs, setCreditInputs] = useState<Record<string, string>>({});
+
+  // Announcement State
+  const [activeTab, setActiveTab] = useState<'users' | 'announcements'>('users');
+  const [announcementText, setAnnouncementText] = useState('');
+  const [announcementImage, setAnnouncementImage] = useState<string | null>(null);
+  const [isSendingAnnouncement, setIsSendingAnnouncement] = useState(false);
+
+  const handleSendAnnouncement = async () => {
+    if (!announcementText && !announcementImage) return;
+    setIsSendingAnnouncement(true);
+    try {
+      await announcementService.sendAnnouncement(announcementText, announcementImage);
+      alert("Announcement Sent Successfully!");
+      setAnnouncementText("");
+      setAnnouncementImage(null);
+    } catch (e) {
+      alert("Failed to send announcement.");
+    } finally {
+      setIsSendingAnnouncement(false);
+    }
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => setAnnouncementImage(reader.result as string);
+      reader.readAsDataURL(file);
+    }
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -70,7 +101,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
         <div className="p-6 border-b border-white/10 flex flex-col md:flex-row justify-between items-center bg-black gap-4">
           <div>
             <h2 className="text-2xl font-bold brand-font text-white uppercase tracking-wider">Super Admin</h2>
-            <p className="text-xs text-purple-400 uppercase tracking-widest font-bold">User Management</p>
+            <div className="flex gap-4 mt-2">
+              <button
+                onClick={() => setActiveTab('users')}
+                className={`text-xs uppercase tracking-widest font-bold ${activeTab === 'users' ? 'text-cyan-400 border-b border-cyan-400' : 'text-gray-500 hover:text-white'}`}
+              >
+                User Management
+              </button>
+              <button
+                onClick={() => setActiveTab('announcements')}
+                className={`text-xs uppercase tracking-widest font-bold ${activeTab === 'announcements' ? 'text-cyan-400 border-b border-cyan-400' : 'text-gray-500 hover:text-white'}`}
+              >
+                Announcements
+              </button>
+            </div>
           </div>
 
           <div className="flex gap-4 items-center w-full md:w-auto">
@@ -89,98 +133,139 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
 
         {/* Content */}
         <div className="flex-grow overflow-auto p-0">
-          {loading ? (
-            <div className="flex items-center justify-center h-full text-gray-500 animate-pulse">Loading Database...</div>
-          ) : (
-            <table className="w-full text-left border-collapse">
-              <thead className="sticky top-0 bg-neutral-900 z-10 border-b border-white/20">
-                <tr className="text-xs text-gray-400 uppercase tracking-widest">
-                  <th className="p-4 font-normal">User Details</th>
-                  <th className="p-4 font-normal">Contact</th>
-                  <th className="p-4 font-normal">Role / Status</th>
-                  <th className="p-4 font-normal">Expiry</th>
-                  <th className="p-4 font-normal">Generations</th>
-                  <th className="p-4 font-normal">Credits</th>
-                  <th className="p-4 font-normal text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5">
-                {filteredUsers.map(user => {
-                  const isExpired = user.expiry_date ? new Date(user.expiry_date) < new Date() : false;
-
-                  return (
-                    <tr key={user.id} className="hover:bg-white/5 transition-colors">
-                      <td className="p-4">
-                        <div className="font-bold text-white text-sm">{user.full_name || 'N/A'}</div>
-                        <div className="text-xs text-gray-500">ID: {user.id.slice(0, 8)}...</div>
-                      </td>
-                      <td className="p-4">
-                        <div className="text-sm text-gray-300">{user.email}</div>
-                        <div className="text-xs text-purple-400 font-mono">{user.mobile_number || 'No Mobile'}</div>
-                      </td>
-                      <td className="p-4">
-                        <div className="flex gap-2">
-                          <span className={`px-2 py-0.5 text-[10px] font-bold uppercase rounded border ${user.role === 'admin' ? 'bg-purple-900/30 border-purple-500 text-purple-300' : 'bg-gray-800 border-gray-600 text-gray-400'}`}>
-                            {user.role}
-                          </span>
-                          <span className={`px-2 py-0.5 text-[10px] font-bold uppercase rounded border ${user.is_active ? (isExpired ? 'bg-orange-900/30 border-orange-500 text-orange-300' : 'bg-green-900/30 border-green-500 text-green-300') : 'bg-red-900/30 border-red-500 text-red-300'}`}>
-                            {user.is_active ? (isExpired ? 'Expired' : 'Active') : 'Inactive'}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="p-4">
-                        <input
-                          type="date"
-                          className="bg-black border border-white/10 text-xs text-gray-300 p-1 rounded outline-none focus:border-purple-500"
-                          value={user.expiry_date ? new Date(user.expiry_date).toISOString().split('T')[0] : ''}
-                          onChange={async (e) => {
-                            const newDate = e.target.value ? new Date(e.target.value).toISOString() : null;
-                            try {
-                              await adminService.updateUserExpiry(user.id, newDate);
-                              setUsers(prev => prev.map(u => u.id === user.id ? { ...u, expiry_date: newDate || undefined } : u));
-                            } catch (err) {
-                              alert("Failed to update expiry date");
-                            }
-                          }}
-                        />
-                      </td>
-                      <td className="p-4">
-                        <div className="text-lg font-bold text-cyan-400">{user.total_generations || 0}</div>
-                      </td>
-                      <td className="p-4">
-                        <div className="text-lg font-bold text-white">{user.credits}</div>
-                      </td>
-                      <td className="p-4 text-right">
-                        <div className="flex justify-end gap-2 items-center">
-                          {/* Add/Remove Credits */}
-                          <div className="flex items-center border border-white/10 rounded overflow-hidden">
-                            <input
-                              type="number"
-                              placeholder="+/-"
-                              className="w-16 bg-black p-1 text-xs text-center text-white outline-none"
-                              value={creditInputs[user.id] || ''}
-                              onChange={(e) => setCreditInputs(p => ({ ...p, [user.id]: e.target.value }))}
-                            />
-                            <button onClick={() => handleUpdateCredits(user)} className="bg-white/10 hover:bg-white/20 px-2 py-1 text-[10px] uppercase font-bold text-gray-300">Set</button>
-                          </div>
-
-                          {/* Toggle Status */}
-                          {user.role !== 'admin' && (
-                            <Button
-                              variant={user.is_active ? 'secondary' : 'primary'}
-                              onClick={() => handleToggleStatus(user)}
-                              className={`py-1 px-3 text-[10px] w-24 ${user.is_active ? 'border-red-500/50 hover:bg-red-900/20 text-red-400' : ''}`}
-                            >
-                              {user.is_active ? 'Deactivate' : 'Activate'}
-                            </Button>
-                          )}
-                        </div>
-                      </td>
+          {activeTab === 'users' && (
+            <>
+              {loading ? (
+                <div className="flex items-center justify-center h-full text-gray-500 animate-pulse">Loading Database...</div>
+              ) : (
+                <table className="w-full text-left border-collapse">
+                  <thead className="sticky top-0 bg-neutral-900 z-10 border-b border-white/20">
+                    <tr className="text-xs text-gray-400 uppercase tracking-widest">
+                      <th className="p-4 font-normal">User Details</th>
+                      <th className="p-4 font-normal">Contact</th>
+                      <th className="p-4 font-normal">Role / Status</th>
+                      <th className="p-4 font-normal">Expiry</th>
+                      <th className="p-4 font-normal">Generations</th>
+                      <th className="p-4 font-normal">Credits</th>
+                      <th className="p-4 font-normal text-right">Actions</th>
                     </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {filteredUsers.map(user => {
+                      const isExpired = user.expiry_date ? new Date(user.expiry_date) < new Date() : false;
+
+                      return (
+                        <tr key={user.id} className="hover:bg-white/5 transition-colors">
+                          <td className="p-4">
+                            <div className="font-bold text-white text-sm">{user.full_name || 'N/A'}</div>
+                            <div className="text-xs text-gray-500">ID: {user.id.slice(0, 8)}...</div>
+                          </td>
+                          <td className="p-4">
+                            <div className="text-sm text-gray-300">{user.email}</div>
+                            <div className="text-xs text-purple-400 font-mono">{user.mobile_number || 'No Mobile'}</div>
+                          </td>
+                          <td className="p-4">
+                            <div className="flex gap-2">
+                              <span className={`px-2 py-0.5 text-[10px] font-bold uppercase rounded border ${user.role === 'admin' ? 'bg-purple-900/30 border-purple-500 text-purple-300' : 'bg-gray-800 border-gray-600 text-gray-400'}`}>
+                                {user.role}
+                              </span>
+                              <span className={`px-2 py-0.5 text-[10px] font-bold uppercase rounded border ${user.is_active ? (isExpired ? 'bg-orange-900/30 border-orange-500 text-orange-300' : 'bg-green-900/30 border-green-500 text-green-300') : 'bg-red-900/30 border-red-500 text-red-300'}`}>
+                                {user.is_active ? (isExpired ? 'Expired' : 'Active') : 'Inactive'}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="p-4">
+                            <input
+                              type="date"
+                              className="bg-black border border-white/10 text-xs text-gray-300 p-1 rounded outline-none focus:border-purple-500"
+                              value={user.expiry_date ? new Date(user.expiry_date).toISOString().split('T')[0] : ''}
+                              onChange={async (e) => {
+                                const newDate = e.target.value ? new Date(e.target.value).toISOString() : null;
+                                try {
+                                  await adminService.updateUserExpiry(user.id, newDate);
+                                  setUsers(prev => prev.map(u => u.id === user.id ? { ...u, expiry_date: newDate || undefined } : u));
+                                } catch (err) {
+                                  alert("Failed to update expiry date");
+                                }
+                              }}
+                            />
+                          </td>
+                          <td className="p-4">
+                            <div className="text-lg font-bold text-cyan-400">{user.total_generations || 0}</div>
+                          </td>
+                          <td className="p-4">
+                            <div className="text-lg font-bold text-white">{user.credits}</div>
+                          </td>
+                          <td className="p-4 text-right">
+                            <div className="flex justify-end gap-2 items-center">
+                              {/* Add/Remove Credits */}
+                              <div className="flex items-center border border-white/10 rounded overflow-hidden">
+                                <input
+                                  type="number"
+                                  placeholder="+/-"
+                                  className="w-16 bg-black p-1 text-xs text-center text-white outline-none"
+                                  value={creditInputs[user.id] || ''}
+                                  onChange={(e) => setCreditInputs(p => ({ ...p, [user.id]: e.target.value }))}
+                                />
+                                <button onClick={() => handleUpdateCredits(user)} className="bg-white/10 hover:bg-white/20 px-2 py-1 text-[10px] uppercase font-bold text-gray-300">Set</button>
+                              </div>
+
+                              {/* Toggle Status */}
+                              {user.role !== 'admin' && (
+                                <Button
+                                  variant={user.is_active ? 'secondary' : 'primary'}
+                                  onClick={() => handleToggleStatus(user)}
+                                  className={`py-1 px-3 text-[10px] w-24 ${user.is_active ? 'border-red-500/50 hover:bg-red-900/20 text-red-400' : ''}`}
+                                >
+                                  {user.is_active ? 'Deactivate' : 'Activate'}
+                                </Button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </>
+          )}
+
+          {/* ANNOUNCEMENT TAB */}
+          {activeTab === 'announcements' && (
+            <div className="flex flex-col items-center justify-center p-12 overflow-y-auto">
+              <div className="w-full max-w-2xl bg-neutral-800 p-8 rounded-xl border border-white/10">
+                <h3 className="text-xl text-white font-bold mb-6">Create New Announcement</h3>
+
+                <textarea
+                  className="w-full bg-black border border-white/20 rounded p-4 text-white mb-6 h-32 focus:border-cyan-500 outline-none"
+                  placeholder="Type announcement message..."
+                  value={announcementText}
+                  onChange={(e) => setAnnouncementText(e.target.value)}
+                />
+
+                <div className="mb-8">
+                  <p className="text-gray-400 text-sm mb-2">Upload Image (Optional)</p>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    className="w-full bg-black border border-white/20 rounded p-2 text-gray-400 text-sm file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-cyan-600 file:text-white hover:file:bg-cyan-500 file:cursor-pointer"
+                  />
+                  {announcementImage && (
+                    <img src={announcementImage} className="mt-4 max-h-48 rounded border border-white/10 object-contain" />
+                  )}
+                </div>
+
+                <Button
+                  onClick={handleSendAnnouncement}
+                  className="w-full py-4 bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-black font-bold uppercase tracking-widest shadow-lg hover:shadow-cyan-500/50 transition-all"
+                  disabled={isSendingAnnouncement}
+                >
+                  {isSendingAnnouncement ? 'Sending...' : 'Push Announcement'}
+                </Button>
+              </div>
+            </div>
           )}
         </div>
       </div>
