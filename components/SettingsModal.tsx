@@ -3,6 +3,7 @@ import { Button } from './Button';
 import { useAuth } from '../contexts/AuthContext';
 import { BrandingSettings } from './BrandingSettings';
 import { updateProfileApiKeys } from '../services/profileService';
+import { getPreferredImageModel, setPreferredImageModel } from '../services/geminiService';
 
 interface SettingsModalProps {
     onClose: () => void;
@@ -13,12 +14,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
     const [apiKey, setApiKey] = useState(profile?.api_keys?.gemini || '');
     const [saved, setSaved] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [preferredModel, setPreferredModelState] = useState<'main' | 'secondary'>('main');
 
     useEffect(() => {
         if (profile?.api_keys?.gemini) {
             setApiKey(profile.api_keys.gemini);
         }
+        setPreferredModelState(getPreferredImageModel());
     }, [profile]);
+
+    // Handler for toggling model
+    const toggleModel = (model: 'main' | 'secondary') => {
+        setPreferredModelState(model);
+        setPreferredImageModel(model); // Save immediately to local storage
+    };
 
     const handleSave = async () => {
         if (!user) return;
@@ -83,6 +92,36 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
                                 {saving ? "Saving..." : (saved ? "Saved Securely" : "Save API Key")}
                             </Button>
                             <p className="text-[10px] text-gray-600 text-center uppercase tracking-wide">Key is stored securely in your profile database.</p>
+                        </div>
+
+                        {/* Image Model Settings */}
+                        <div className="space-y-4 pt-4 border-t border-white/10">
+                            <h3 className="text-xs font-bold uppercase tracking-widest text-purple-400">Image Generation Model</h3>
+                            <p className="text-[10px] text-gray-500">Select the model used for image generation. Switch to "Stable" if you experience frequent 503 errors.</p>
+
+                            <div className="flex gap-4">
+                                <button
+                                    onClick={() => toggleModel('main')}
+                                    className={`flex-1 p-3 border ${preferredModel === 'main' ? 'border-purple-500 bg-purple-500/10' : 'border-white/10 bg-black'} transition-all text-left group`}
+                                >
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <div className={`w-2 h-2 rounded-full ${preferredModel === 'main' ? 'bg-purple-400' : 'bg-gray-600'}`}></div>
+                                        <span className={`text-xs font-bold uppercase ${preferredModel === 'main' ? 'text-white' : 'text-gray-500 group-hover:text-gray-300'}`}>Standard</span>
+                                    </div>
+                                    <p className="text-[10px] text-gray-500">Gemini 3 Pro. Highest quality. May be unstable.</p>
+                                </button>
+
+                                <button
+                                    onClick={() => toggleModel('secondary')}
+                                    className={`flex-1 p-3 border ${preferredModel === 'secondary' ? 'border-cyan-500 bg-cyan-500/10' : 'border-white/10 bg-black'} transition-all text-left group`}
+                                >
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <div className={`w-2 h-2 rounded-full ${preferredModel === 'secondary' ? 'bg-cyan-400' : 'bg-gray-600'}`}></div>
+                                        <span className={`text-xs font-bold uppercase ${preferredModel === 'secondary' ? 'text-white' : 'text-gray-500 group-hover:text-gray-300'}`}>Stable</span>
+                                    </div>
+                                    <p className="text-[10px] text-gray-500">Gemini 2.5 Flash. Faster, more reliable. Good quality.</p>
+                                </button>
+                            </div>
                         </div>
 
                         {/* Social Media API Settings */}

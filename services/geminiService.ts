@@ -3,8 +3,9 @@ import { AppStep, Gender, CATEGORIES, Concept, ProductionAssets, UserProfile, SO
 import { Profile } from "../contexts/AuthContext";
 
 // MODELS
-const TEXT_MODEL = 'gemini-3-pro-preview';
+const TEXT_MODEL = 'gemini-3-flash-preview';
 const IMAGE_MODEL = 'gemini-3-pro-image-preview';
+const SECONDARY_IMAGE_MODEL = 'gemini-2.5-flash-image';
 
 // Helper to get client with current key
 const getClient = (providedApiKey?: string) => {
@@ -17,9 +18,20 @@ export const checkApiKey = async (providedApiKey?: string): Promise<boolean> => 
   return !!(providedApiKey || localStorage.getItem('gemini_api_key'));
 };
 
+
 export const promptForApiKey = async (): Promise<void> => {
   // No-op, managed by UI now
 };
+
+export const getPreferredImageModel = (): 'main' | 'secondary' => {
+  const saved = localStorage.getItem('preferred_image_model');
+  return (saved === 'secondary') ? 'secondary' : 'main';
+};
+
+export const setPreferredImageModel = (model: 'main' | 'secondary') => {
+  localStorage.setItem('preferred_image_model', model);
+};
+
 
 /**
  * Extracts MIME type and raw base64 data from a Data URL
@@ -72,6 +84,15 @@ const generateWithFallback = async (
       model: modelName,
       generationConfig: cfg
     });
+
+    console.log(`[Gemini Request] Model: ${modelName}`);
+    console.log(`[Gemini Request] Config:`, JSON.stringify(cfg, null, 2));
+    if (contents && contents.parts) {
+      console.log(`[Gemini Request] Prompt Parts:`, contents.parts);
+    } else {
+      console.log(`[Gemini Request] Input Content:`, contents);
+    }
+
     // contents is { parts: [...] } based on usage
     return await model.generateContent(contents.parts || contents);
   };
@@ -359,7 +380,7 @@ export const generateConceptDescriptions = async (category: string, gender: Gend
     const response = await generateWithFallback(
       ai,
       TEXT_MODEL,
-      'gemini-pro',
+      TEXT_MODEL,
       { parts },
       {
         responseMimeType: "application/json",
@@ -404,7 +425,8 @@ export const generateConceptImage = async (conceptDesc: string, category: string
     parts.push({ text: imagePrompt });
   }
 
-  const response = await generateWithFallback(ai, IMAGE_MODEL, 'gemini-1.5-flash', { parts }, { imageConfig: { aspectRatio: "4:3" } });
+  const preferredModel = getPreferredImageModel() === 'secondary' ? SECONDARY_IMAGE_MODEL : IMAGE_MODEL;
+  const response = await generateWithFallback(ai, preferredModel, SECONDARY_IMAGE_MODEL, { parts }, { imageConfig: { aspectRatio: "4:3" } });
   return response.response.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data || "";
 };
 
@@ -432,7 +454,13 @@ export const generateProductionAssets = async (
       fullPrompt += ` Integrate the provided brand logo creatively on the ${action}.`;
     }
 
-    const response = await generateWithFallback(ai, IMAGE_MODEL, 'gemini-1.5-flash', { parts }, { imageConfig: { aspectRatio: aspectRatio as any, imageSize: usePro ? "2K" : undefined } });
+    const preferredModel = getPreferredImageModel() === 'secondary' ? SECONDARY_IMAGE_MODEL : IMAGE_MODEL;
+    // Gemini 2.5 Flash Image likely doesn't support 'imageSize' or '2K' resolution param.
+    const imgConfig = (preferredModel === SECONDARY_IMAGE_MODEL)
+      ? { aspectRatio: aspectRatio as any }
+      : { aspectRatio: aspectRatio as any, imageSize: usePro ? "2K" : undefined };
+
+    const response = await generateWithFallback(ai, preferredModel, SECONDARY_IMAGE_MODEL, { parts }, { imageConfig: imgConfig });
     return response.response.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data || refImage;
   };
 
@@ -472,14 +500,16 @@ export const generateGhostMannequin = async (frontImageB64: string, backImageB64
   const ai = getClient(apiKey);
   const frontInfo = parseDataUrl(frontImageB64);
   const frontPrompt = `Task: Transform photo into professional "ghost mannequin" e-commerce asset. Light gray background. Hyper-realistic 2K.`;
-  const frontResponse = await generateWithFallback(ai, IMAGE_MODEL, IMAGE_MODEL, { parts: [{ text: frontPrompt }, { inlineData: frontInfo }] }, { imageConfig: { aspectRatio: "3:4", imageSize: "2K" } });
+  const preferredModel = getPreferredImageModel() === 'secondary' ? SECONDARY_IMAGE_MODEL : IMAGE_MODEL;
+  const imgConfig = (preferredModel === SECONDARY_IMAGE_MODEL) ? { aspectRatio: "3:4" } : { aspectRatio: "3:4", imageSize: "2K" };
+  const frontResponse = await generateWithFallback(ai, preferredModel, SECONDARY_IMAGE_MODEL, { parts: [{ text: frontPrompt }, { inlineData: frontInfo }] }, { imageConfig: imgConfig as any });
   const generatedFront = frontResponse.response.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data || "";
 
   let generatedBack: string | null = null;
   if (backImageB64) {
     const backInfo = parseDataUrl(backImageB64);
     const backPrompt = `Create the BACK VIEW ghost mannequin image consistent with the generated front view.`;
-    const backResponse = await generateWithFallback(ai, IMAGE_MODEL, IMAGE_MODEL, { parts: [{ text: backPrompt }, { inlineData: backInfo }, { inlineData: { mimeType: 'image/png', data: generatedFront } }] }, { imageConfig: { aspectRatio: "3:4", imageSize: "2K" } });
+    const backResponse = await generateWithFallback(ai, preferredModel, SECONDARY_IMAGE_MODEL, { parts: [{ text: backPrompt }, { inlineData: backInfo }, { inlineData: { mimeType: 'image/png', data: generatedFront } }] }, { imageConfig: imgConfig as any });
     generatedBack = backResponse.response.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data || null;
   }
   return { front: generatedFront, back: generatedBack };
@@ -492,13 +522,17 @@ export const generateBanners = async (productImageB64: string, preset: string, a
   const effectiveLogo = (branding?.enabled && branding.logoBase64) ? branding.logoBase64 : null;
 
   const mainPrompt = `Creative Director Task: Professional social media banner for streetwear. Preset: ${preset}. Holiday: ${holiday}. Deal: ${deal}. 2K quality. ${brandName ? `Brand: ${brandName}` : ""}`;
+  const preferredModel = getPreferredImageModel() === 'secondary' ? SECONDARY_IMAGE_MODEL : IMAGE_MODEL;
 
   const generate = async () => {
     const parts: any[] = [{ text: mainPrompt }, { inlineData: prodInfo }];
     if (effectiveLogo) {
       parts.push({ inlineData: parseDataUrl(effectiveLogo) });
     }
-    const res = await generateWithFallback(ai, IMAGE_MODEL, IMAGE_MODEL, { parts }, { imageConfig: { aspectRatio: (aspectRatio === "4:5" || aspectRatio === "2:3" ? "3:4" : aspectRatio) as any, imageSize: "2K" } });
+    const imgConfig = (preferredModel === SECONDARY_IMAGE_MODEL)
+      ? { aspectRatio: (aspectRatio === "4:5" || aspectRatio === "2:3" ? "3:4" : aspectRatio) as any }
+      : { aspectRatio: (aspectRatio === "4:5" || aspectRatio === "2:3" ? "3:4" : aspectRatio) as any, imageSize: "2K" };
+    const res = await generateWithFallback(ai, IMAGE_MODEL, SECONDARY_IMAGE_MODEL, { parts }, { imageConfig: imgConfig });
     return res.response.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data || "";
   };
 
@@ -543,7 +577,7 @@ export const regenerateProductionAsset = async (
     fullPrompt += ` Ensure the provided brand logo is correctly integrated.`;
   }
 
-  const response = await generateWithFallback(ai, IMAGE_MODEL, 'gemini-1.5-flash', { parts }, { imageConfig: { aspectRatio: "1:1" } });
+  const response = await generateWithFallback(ai, preferredModel, SECONDARY_IMAGE_MODEL, { parts }, { imageConfig: { aspectRatio: "1:1" } });
   return response.response.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data || "";
 };
 
@@ -565,8 +599,12 @@ export const generateImageRevision = async (baseImage: string, prompt: string, a
     parts[0].text += `\n\nIMPORTANT: Use the second attached image as a visual reference (e.g., logo, pattern, or style guide) for the modification.`;
   }
 
-  const response = await generateWithFallback(ai, IMAGE_MODEL, 'gemini-1.5-flash', { parts }, {
-    imageConfig: { aspectRatio: "1:1", imageSize: "2K" }
+  const preferredModel = getPreferredImageModel() === 'secondary' ? SECONDARY_IMAGE_MODEL : IMAGE_MODEL;
+
+  const imgConfig = (preferredModel === SECONDARY_IMAGE_MODEL) ? { aspectRatio: "1:1" } : { aspectRatio: "1:1", imageSize: "2K" };
+
+  const response = await generateWithFallback(ai, preferredModel, SECONDARY_IMAGE_MODEL, { parts }, {
+    imageConfig: imgConfig as any
   });
 
   return response.response.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data || "";
@@ -589,14 +627,18 @@ export const editGarmentWithAI = async (baseImage: string, maskImage: string, pr
   The mask indicates where the changes should occur. Maintain stylistic continuity with the rest of the garment.
   CRITICAL: Professional fashion studio quality. High resolution output. No real-world brand logos.`;
 
-  const response = await generateWithFallback(ai, IMAGE_MODEL, 'gemini-1.5-flash', {
+  const preferredModel = getPreferredImageModel() === 'secondary' ? SECONDARY_IMAGE_MODEL : IMAGE_MODEL;
+
+  const imgConfig = (preferredModel === SECONDARY_IMAGE_MODEL) ? { aspectRatio: "1:1" } : { aspectRatio: "1:1", imageSize: "2K" };
+
+  const response = await generateWithFallback(ai, preferredModel, SECONDARY_IMAGE_MODEL, {
     parts: [
       { text: fullPrompt },
       { inlineData: { mimeType: baseMime, data: baseData } },
       { inlineData: { mimeType: maskMime, data: maskData } }
     ]
   }, {
-    imageConfig: { aspectRatio: "1:1", imageSize: "2K" }
+    imageConfig: imgConfig as any
   });
 
   return response.response.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data || "";
@@ -653,7 +695,8 @@ export const generateModelPhotoshoot = async (
     if (effectiveLogo) parts.push({ inlineData: parseDataUrl(effectiveLogo) });
   }
 
-  const response = await generateWithFallback(ai, IMAGE_MODEL, 'gemini-1.5-flash', { parts }, { imageConfig: { aspectRatio: "3:4", imageSize: "2K" } });
+  const imgConfig = (preferredModel === SECONDARY_IMAGE_MODEL) ? { aspectRatio: "3:4" } : { aspectRatio: "3:4", imageSize: "2K" };
+  const response = await generateWithFallback(ai, preferredModel, SECONDARY_IMAGE_MODEL, { parts }, { imageConfig: imgConfig as any });
   return response.response.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data || "";
 };
 
@@ -851,7 +894,7 @@ export const generateHelpAssistantResponse = async (query: string, apiKey?: stri
     const response = await generateWithFallback(
       ai,
       TEXT_MODEL,
-      'gemini-pro',
+      TEXT_MODEL,
       {
         parts: [
           { text: systemPrompt },
@@ -911,7 +954,7 @@ export const generateSocialPost = async (
     const response = await generateWithFallback(
       ai,
       TEXT_MODEL,
-      'gemini-pro',
+      TEXT_MODEL,
       {
         parts: [
           { text: prompt },

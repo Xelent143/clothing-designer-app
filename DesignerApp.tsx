@@ -6,7 +6,7 @@ import { Button } from './components/Button';
 import { LoadingScreen } from './components/LoadingScreen';
 import { TechPack } from './components/TechPack';
 import { AdminPanel } from './components/AdminPanel';
-import { subscribeToGlobalStats } from './services/userService';
+
 import { useAuth } from './contexts/AuthContext';
 import { Login } from './components/Login';
 // import { CategoryCarousel } from './components/CategoryCarousel';
@@ -31,9 +31,9 @@ import {
   generateHelpAssistantResponse
 } from './services/geminiService';
 import { exportTechPackPDF } from './services/pdfService';
-import { webhookService } from './services/webhookService';
 import { incrementGenerations } from './services/profileService';
 import { uploadToImgBB, generateUniqueFilename } from './services/imgbbService';
+
 
 // --- Category Icons ---
 // Updated icon components to accept className prop for styling
@@ -246,8 +246,6 @@ const App: React.FC = () => {
 
   useEffect(() => {
     checkApiKey().then(setHasKey);
-    const unsubStats = subscribeToGlobalStats((data) => setGlobalStats(data));
-    return () => unsubStats();
   }, []);
 
   const handleKeySelect = async () => {
@@ -329,25 +327,10 @@ const App: React.FC = () => {
       }));
       setConcepts(conceptsWithImages.filter(c => c.imageBase64));
 
-      // Webhook Integration: Send Concepts
-      conceptsWithImages.forEach((c, idx) => {
-        if (c.imageBase64) {
-          webhookService.sendImageToWebhook({
-            projectName: selectedCategory,
-            fileName: `${selectedCategory}_Concept_${idx + 1}`,
-            label: "Concept Prototype",
-            image: c.imageBase64
-          });
-
-          // ImgBB Upload
-          const filename = generateUniqueFilename(profile?.full_name || user?.email || 'user', `concept-${idx + 1}`);
-          uploadToImgBB(c.imageBase64, filename);
-        }
-      });
-
       if (profile?.id) {
         await incrementGenerations(profile.id, conceptsWithImages.filter(c => c.imageBase64).length);
       }
+
 
       setStep(AppStep.CONCEPT_SELECTION);
     } catch (e: any) { alert(e.message); } finally { setLoading(false); }
@@ -367,26 +350,6 @@ const App: React.FC = () => {
     try {
       const assets = await generateProductionAssets(concept.imageBase64, concept.description, selectedCategory, selectedGender, (m, p) => { setLoadingMsgSub(m); setLoadingProgress(p); }, profile?.branding, profile?.api_keys?.gemini);
       setProductionAssets(assets);
-
-      // Webhook Integration: Send Production Assets
-      if (assets) {
-        if (assets.front) {
-          webhookService.sendImageToWebhook({ projectName: concept.description.substring(0, 20), fileName: `${selectedCategory}_Front`, label: "Front View", image: assets.front });
-          uploadToImgBB(assets.front, generateUniqueFilename(profile?.full_name || 'user', 'front'));
-        }
-        if (assets.back) {
-          webhookService.sendImageToWebhook({ projectName: concept.description.substring(0, 20), fileName: `${selectedCategory}_Back`, label: "Back View", image: assets.back });
-          uploadToImgBB(assets.back, generateUniqueFilename(profile?.full_name || 'user', 'back'));
-        }
-        if (assets.closeup) {
-          webhookService.sendImageToWebhook({ projectName: concept.description.substring(0, 20), fileName: `${selectedCategory}_Detail`, label: "Detail Collage", image: assets.closeup });
-          uploadToImgBB(assets.closeup, generateUniqueFilename(profile?.full_name || 'user', 'detail'));
-        }
-        if (assets.lifestyle) {
-          webhookService.sendImageToWebhook({ projectName: concept.description.substring(0, 20), fileName: `${selectedCategory}_Lifestyle`, label: "Lifestyle View", image: assets.lifestyle });
-          uploadToImgBB(assets.lifestyle, generateUniqueFilename(profile?.full_name || 'user', 'lifestyle'));
-        }
-      }
 
       if (profile?.id) {
         await incrementGenerations(profile.id, 5); // Default production set is 5 views

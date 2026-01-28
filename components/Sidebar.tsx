@@ -48,7 +48,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <aside className={`w-64 h-screen bg-black/40 backdrop-blur-xl border-r border-white/10 flex flex-col fixed left-0 top-0 z-40 transition-transform duration-300 md:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'} md:static md:flex`}>
                 <div className="p-8 flex justify-between items-center">
                     <div>
-                        <img src="/images/logo-brand.png" alt="Ayzelify" className="h-10 mb-2 object-contain" />
+                        <img src="/images/logo-brand.png" alt="Ayzelify" className="h-40 mb-2 object-contain" />
                         <a
                             href="https://www.sialkotaimasters.com/"
                             target="_blank"

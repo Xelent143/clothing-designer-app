@@ -1,7 +1,7 @@
 
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+// Firestore removed
 
 const firebaseConfig = {
   apiKey: "AIzaSyCol2WPYlpqK4peJCHThUFj3dEkdI95jSc",
@@ -16,7 +16,5 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-// Explicitly connect to the (default) database
-export const db = getFirestore(app, "(default)");
-
-console.log("Firebase Initialized:", app.name);
+// Database removed
+console.log("Firebase Initialized (Auth Only):", app.name);
