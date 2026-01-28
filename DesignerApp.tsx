@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Navigate } from 'react-router-dom';
-import { AppStep, Gender, CATEGORIES, Concept, ProductionAssets, UserProfile, SOCCER_PRESETS, AppMode, BANNER_PRESETS, ASPECT_RATIOS, HOLIDAY_PRESETS, PUFFER_JACKET_PRESETS, BASEBALL_PRESETS, ICE_HOCKEY_PRESETS, BASKETBALL_PRESETS, WINDBREAKER_PRESETS, CHEER_PRESETS, ACTIVEWEAR_PRESETS, MMA_RASHGUARD_PRESETS, BOXING_GLOVE_PRESETS, AMERICAN_FOOTBALL_PRESETS, LEATHER_PRESETS, TRACKSUIT_PRESETS, MOTO_RACING_PRESETS, AI_MODEL_ETHNICITY, AI_MODEL_AGE, AI_MODEL_SCENE, AI_MODEL_ACTION, TechPackData, CustomizationParams, EMBELLISHMENT_TECHNIQUES, GRAPHIC_STYLES } from './types';
+import { AppStep, Gender, CATEGORIES, Concept, ProductionAssets, UserProfile, SOCCER_PRESETS, AppMode, BANNER_PRESETS, ASPECT_RATIOS, HOLIDAY_PRESETS, PUFFER_JACKET_PRESETS, BASEBALL_PRESETS, ICE_HOCKEY_PRESETS, BASKETBALL_PRESETS, WINDBREAKER_PRESETS, CHEER_PRESETS, ACTIVEWEAR_PRESETS, MMA_RASHGUARD_PRESETS, BOXING_GLOVE_PRESETS, AMERICAN_FOOTBALL_PRESETS, LEATHER_PRESETS, TRACKSUIT_PRESETS, MOTO_RACING_PRESETS, AI_MODEL_ETHNICITY, AI_MODEL_AGE, AI_MODEL_SCENE, AI_MODEL_ACTION, TechPackData, CustomizationParams, EMBELLISHMENT_TECHNIQUES, GRAPHIC_STYLES, TrendPrompt, MarketRegion } from './types';
 import { Button } from './components/Button';
 import { LoadingScreen } from './components/LoadingScreen';
 import { TechPack } from './components/TechPack';
@@ -14,6 +14,7 @@ import { Sidebar } from './components/Sidebar';
 import { SettingsModal } from './components/SettingsModal';
 import { TechPackGenerator } from './components/TechPackGenerator';
 import { ChangelogModal } from './components/ChangelogModal';
+import { AnnouncementPopup } from './components/AnnouncementPopup';
 import { SocialMediaStudio } from './components/SocialMediaStudio';
 import { CURRENT_APP_VERSION } from './types';
 import {
@@ -28,10 +29,14 @@ import {
   promptForApiKey,
   generateTechPack,
   generateImageRevision,
-  generateHelpAssistantResponse
+
+  generateHelpAssistantResponse,
+  generateTrendPrompts,
+  generateMasterGridImage,
+  processMasterGridToAssets
 } from './services/geminiService';
 import { exportTechPackPDF } from './services/pdfService';
-import { webhookService } from './services/webhookService';
+
 import { incrementGenerations } from './services/profileService';
 import { uploadToImgBB, generateUniqueFilename } from './services/imgbbService';
 
@@ -147,6 +152,14 @@ const App: React.FC = () => {
   const [logo, setLogo] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Shorts Workflow State
+  // Shorts Workflow State
+  const [selectedMarket, setSelectedMarket] = useState<MarketRegion>('USA');
+  const [trendPrompts, setTrendPrompts] = useState<TrendPrompt[]>([]);
+  const [selectedTrendPrompt, setSelectedTrendPrompt] = useState<TrendPrompt | null>(null);
+  const [masterGridImage, setMasterGridImage] = useState<string | null>(null);
+  const [expandedPrompts, setExpandedPrompts] = useState<Record<number, boolean>>({});
+
   // Changelog State
   const [showChangelog, setShowChangelog] = useState(false);
 
@@ -221,6 +234,9 @@ const App: React.FC = () => {
   const [rebrandHistory, setRebrandHistory] = useState<string[]>([]);
   const [rebrandPrompt, setRebrandPrompt] = useState("");
   const [rebrandReferenceImage, setRebrandReferenceImage] = useState<string | null>(null); // New State for Reference Image
+  // Wali Workflow Categories
+  const WALI_WORKFLOW_CATEGORIES = ['Shorts', 'Trousers', 'Leggings', 'Hoodies'];
+
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const masterImageRef = useRef<HTMLInputElement>(null);
   const rebrandImageRef = useRef<HTMLInputElement>(null);
@@ -283,12 +299,9 @@ const App: React.FC = () => {
           else if (assetType === 'Lifestyle') updatedAssets.lifestyle = newImage;
 
           setProductionAssets(updatedAssets);
-          webhookService.sendImageToWebhook({
-            projectName: selectedCategory,
-            fileName: `${selectedCategory}_${assetType}_Regenerated`,
-            label: `${assetType} View (Regenerated)`,
-            image: newImage
-          });
+
+          // ImgBB Upload
+          uploadToImgBB(newImage, generateUniqueFilename(profile?.full_name || 'user', `${selectedCategory}_${assetType}_Regenerated`));
 
           if (profile?.id) {
             await incrementGenerations(profile.id, 1);
@@ -319,7 +332,17 @@ const App: React.FC = () => {
     setLoadingMsg(prompt ? `Analyzing Request` : `Analyzing Trends`);
     setLoadingMsgSub(prompt ? "Researching custom requirements..." : "Scraping Streetwear Data...");
     setLoadingProgress(10);
+    setLoadingProgress(10);
     try {
+      if (category === 'Shorts') {
+        setLoadingMsg("Analysing 2026 Shorts Trends...");
+        const prompts = await generateTrendPrompts(category, selectedGender, style, profile?.api_keys?.gemini);
+        setTrendPrompts(prompts);
+        setStep(AppStep.TREND_PROMPT_SELECTION);
+        setLoading(false);
+        return;
+      }
+
       const descriptions = await generateConceptDescriptions(category, selectedGender, preset, undefined, style, prompt, customInspirationImage, profile?.branding, profile?.api_keys?.gemini, customParams);
       setLoadingMsg("Generating Prototypes");
       setLoadingProgress(30);
@@ -371,19 +394,15 @@ const App: React.FC = () => {
       // Webhook Integration: Send Production Assets
       if (assets) {
         if (assets.front) {
-          webhookService.sendImageToWebhook({ projectName: concept.description.substring(0, 20), fileName: `${selectedCategory}_Front`, label: "Front View", image: assets.front });
           uploadToImgBB(assets.front, generateUniqueFilename(profile?.full_name || 'user', 'front'));
         }
         if (assets.back) {
-          webhookService.sendImageToWebhook({ projectName: concept.description.substring(0, 20), fileName: `${selectedCategory}_Back`, label: "Back View", image: assets.back });
           uploadToImgBB(assets.back, generateUniqueFilename(profile?.full_name || 'user', 'back'));
         }
         if (assets.closeup) {
-          webhookService.sendImageToWebhook({ projectName: concept.description.substring(0, 20), fileName: `${selectedCategory}_Detail`, label: "Detail Collage", image: assets.closeup });
           uploadToImgBB(assets.closeup, generateUniqueFilename(profile?.full_name || 'user', 'detail'));
         }
         if (assets.lifestyle) {
-          webhookService.sendImageToWebhook({ projectName: concept.description.substring(0, 20), fileName: `${selectedCategory}_Lifestyle`, label: "Lifestyle View", image: assets.lifestyle });
           uploadToImgBB(assets.lifestyle, generateUniqueFilename(profile?.full_name || 'user', 'lifestyle'));
         }
       }
@@ -406,11 +425,9 @@ const App: React.FC = () => {
 
       // Webhook Integration: Send Ghost Mannequin
       if (results.front) {
-        webhookService.sendImageToWebhook({ projectName: "Ghost Mannequin", fileName: "Ghost_Front", label: "Ghost Mannequin Front", image: results.front });
         uploadToImgBB(results.front, generateUniqueFilename(profile?.full_name || 'user', 'ghost-front'));
       }
       if (results.back) {
-        webhookService.sendImageToWebhook({ projectName: "Ghost Mannequin", fileName: "Ghost_Back", label: "Ghost Mannequin Back", image: results.back });
         uploadToImgBB(results.back, generateUniqueFilename(profile?.full_name || 'user', 'ghost-back'));
       }
 
@@ -431,9 +448,8 @@ const App: React.FC = () => {
       const results = await generateBanners(bannerProductImage, selectedBannerPreset, selectedAspectRatio, selectedHoliday, dealText, profile?.branding, profile?.api_keys?.gemini);
       setGeneratedBanners(results);
 
-      // Webhook Integration: Send Banners
+      // ImgBB Integration: Send Banners
       results.forEach((b, idx) => {
-        webhookService.sendImageToWebhook({ projectName: "Marketing Banner", fileName: `Banner_${idx + 1}`, label: "Marketing Banner", image: b });
         uploadToImgBB(b, generateUniqueFilename(profile?.full_name || 'user', `banner-${idx + 1}`));
       });
 
@@ -462,13 +478,7 @@ const App: React.FC = () => {
         setPhotoshootResultImage(result);
       }
 
-      // Webhook Integration: Send Photoshoot
-      webhookService.sendImageToWebhook({
-        projectName: "Virtual Photoshoot",
-        fileName: `Photoshoot_${activeView.replace(/ /g, '_')}`,
-        label: `Photoshoot ${activeView}`,
-        image: result
-      });
+      // ImgBB Integration: Send Photoshoot
       uploadToImgBB(result, generateUniqueFilename(profile?.full_name || 'user', `photoshoot-${activeView.replace(/ /g, '-')}`));
 
       if (profile?.id) {
@@ -587,15 +597,50 @@ const App: React.FC = () => {
     else if (requestedMode === 'social_studio') setStep(AppStep.SOCIAL_STUDIO_INPUT);
     else if (requestedMode === 'ghost') setStep(AppStep.CATEGORY_SELECT);
     else if (step === AppStep.PRESET_SELECTION) setStep(AppStep.CATEGORY_SELECT);
+    else if (step === AppStep.TREND_PROMPT_SELECTION) setStep(AppStep.CATEGORY_SELECT);
+    else if (step === AppStep.MASTER_GRID_PREVIEW) setStep(AppStep.TREND_PROMPT_SELECTION);
     else setStep(AppStep.CATEGORY_SELECT);
   };
 
   const handleBack = () => {
     if (step === AppStep.PRODUCTION_VIEW) setStep(AppStep.CONCEPT_SELECTION);
+    // Shortcut for Wali workflow
+    else if (step === AppStep.PRODUCTION_VIEW && WALI_WORKFLOW_CATEGORIES.includes(selectedCategory)) setStep(AppStep.MASTER_GRID_PREVIEW);
     else if (step === AppStep.CONCEPT_SELECTION) setStep(AppStep.CATEGORY_SELECT);
+    else if (step === AppStep.TREND_PROMPT_SELECTION) setStep(AppStep.MARKET_SELECTION);
+    else if (step === AppStep.MASTER_GRID_PREVIEW) setStep(AppStep.TREND_PROMPT_SELECTION);
     else if (step === AppStep.PHOTOSHOOT_AI_CONFIG) setStep(AppStep.PHOTOSHOOT_UPLOAD);
     else if (step === AppStep.BANNER_RESULTS) setStep(AppStep.BANNER_UPLOAD);
     else handleReset();
+  };
+
+  const handleTrendGridGeneration = async (prompt: TrendPrompt) => {
+    setSelectedTrendPrompt(prompt);
+    setLoading(true);
+    setLoadingMsg("Designing Master Grid...");
+    setLoadingMsgSub("Generating 4-View Layout...");
+    try {
+      const grid = await generateMasterGridImage(prompt, selectedCategory, profile?.api_keys?.gemini);
+      setMasterGridImage(grid);
+      setStep(AppStep.MASTER_GRID_PREVIEW);
+    } catch (e: any) { alert(e.message); } finally { setLoading(false); }
+  };
+
+  const handleGridConversion = async () => {
+    if (!masterGridImage || !selectedTrendPrompt) return;
+    setLoading(true);
+    setLoadingMsg("Production Studio");
+    setLoadingMsgSub("Extracting High-Fidelity Assets...");
+    try {
+      const assets = await processMasterGridToAssets(masterGridImage, selectedTrendPrompt, selectedCategory, profile?.api_keys?.gemini);
+      setProductionAssets(assets);
+      setStep(AppStep.PRODUCTION_VIEW);
+
+      // ImgBB Integration
+      if (assets.front) await uploadToImgBB(assets.front, generateUniqueFilename(profile?.full_name || 'user', `${selectedCategory}_Front`));
+      if (assets.back) await uploadToImgBB(assets.back, generateUniqueFilename(profile?.full_name || 'user', `${selectedCategory}_Back`));
+
+    } catch (e: any) { alert(e.message); } finally { setLoading(false); }
   };
 
   if (authLoading) return <LoadingScreen message="Initializing" subMessage="Verifying credentials..." progress={0} />;
@@ -766,7 +811,12 @@ const App: React.FC = () => {
                           <button
                             key={cat}
                             onClick={() => {
-                              setSelectedCategory(cat);
+                              if (WALI_WORKFLOW_CATEGORIES.includes(cat)) {
+                                setSelectedCategory(cat);
+                                setStep(AppStep.MARKET_SELECTION);
+                                return;
+                              }
+
                               const presetCategories = ['Boxing Gloves', 'Soccer Uniforms', 'Puffer Jackets', 'Baseball Jersey', 'Ice Hockey Uniform', 'Basketball Uniform', 'Windbreaker Jackets', 'Cheerleading Uniform', 'Activewear', 'MMA Rashguards', 'American Football Uniform', 'Leather Products', 'Tracksuits', 'Moto Racing Suits'];
                               if (presetCategories.includes(cat)) {
                                 setStep(AppStep.PRESET_SELECTION);
@@ -1111,6 +1161,135 @@ const App: React.FC = () => {
             )
           }
 
+          {/* MARKET SELECTION (NEW SHORTS FLOW) */}
+          {appMode === 'designer' && step === AppStep.MARKET_SELECTION && (
+            <div className="w-full max-w-7xl mx-auto flex flex-col items-center animate-slide-up pb-24">
+              <div className="flex w-full justify-between items-center mb-8">
+                <Button variant="outline" onClick={() => setStep(AppStep.CATEGORY_SELECT)} className="flex items-center gap-2">
+                  <BackIcon className="w-4 h-4" /> Back to Categories
+                </Button>
+              </div>
+
+              <div className="text-center mb-12">
+                <h2 className="text-3xl font-bold brand-font uppercase tracking-widest text-white mb-2">Select Target Market</h2>
+                <p className="text-cyan-500/60 text-xs font-mono uppercase tracking-[0.2em]">Where is this collection launching?</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 w-full px-4">
+                {(['USA', 'Europe', 'Asia', 'Australia'] as MarketRegion[]).map((market) => (
+                  <button
+                    key={market}
+                    onClick={async () => {
+                      setSelectedMarket(market);
+                      setLoading(true);
+                      setLoadingMsg(`Reseaching ${market} Trends...`);
+                      try {
+                        const prompts = await generateTrendPrompts(selectedCategory, selectedGender, undefined, profile?.api_keys?.gemini, market);
+                        setTrendPrompts(prompts);
+                        setStep(AppStep.TREND_PROMPT_SELECTION);
+                      } catch (e: any) { alert(e.message); } finally { setLoading(false); }
+                    }}
+                    className="bg-neutral-900/80 border border-white/10 hover:border-cyan-500 p-8 rounded-2xl flex flex-col items-center gap-4 group transition-all"
+                  >
+                    <h3 className="text-2xl font-black text-white uppercase tracking-wider group-hover:text-cyan-400">{market}</h3>
+                    <p className="text-xs text-gray-500 font-mono uppercase tracking-widest">
+                      {market === 'USA' && 'Street / Sport / Hip-Hop'}
+                      {market === 'Europe' && 'Luxury / Avant-Garde'}
+                      {market === 'Asia' && 'Tech-Wear / Minimalist'}
+                      {market === 'Australia' && 'Surf / Outdoor / Casual'}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* TREND PROMPT SELECTION (NEW SHORTS FLOW) */}
+          {appMode === 'designer' && step === AppStep.TREND_PROMPT_SELECTION && (
+            <div className="w-full max-w-7xl mx-auto flex flex-col items-center animate-slide-up pb-24">
+              <div className="flex w-full justify-between items-center mb-8">
+                <Button variant="outline" onClick={() => setStep(AppStep.MARKET_SELECTION)} className="flex items-center gap-2">
+                  <BackIcon className="w-4 h-4" /> Back to Markets
+                </Button>
+              </div>
+
+              <div className="text-center mb-12">
+                <h2 className="text-3xl font-bold brand-font uppercase tracking-widest text-white mb-2">2026 Trend Analysis</h2>
+                <p className="text-cyan-500/60 text-xs font-mono uppercase tracking-[0.2em]">Select a Master Concept to Generate</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full px-4">
+                {trendPrompts.map((prompt) => (
+                  <div key={prompt.id} className="bg-neutral-900/80 border border-white/10 p-6 rounded-2xl flex flex-col gap-4 hover:border-cyan-500/50 transition-all group">
+                    <div className="flex justify-between items-start">
+                      <h3 className="text-xl font-black text-white uppercase tracking-wider">{prompt.title}</h3>
+                      <span className="text-[10px] bg-cyan-500/10 text-cyan-400 px-2 py-1 rounded border border-cyan-500/20 font-bold">#{prompt.id}</span>
+                    </div>
+                    <div className={`relative`}>
+                      <p className={`text-sm text-gray-400 leading-relaxed font-mono border-l-2 border-white/5 pl-3 ${expandedPrompts[prompt.id] ? '' : 'line-clamp-6'}`}>
+                        {prompt.description}
+                      </p>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setExpandedPrompts(prev => ({ ...prev, [prompt.id]: !prev[prompt.id] })); }}
+                        className="text-[10px] text-cyan-500 hover:text-cyan-400 font-bold uppercase tracking-widest mt-2 flex items-center gap-1"
+                      >
+                        {expandedPrompts[prompt.id] ? 'Collapse' : 'Read Full Prompt'}
+                        <span className="text-lg leading-none">{expandedPrompts[prompt.id] ? '−' : '+'}</span>
+                      </button>
+                    </div>
+                    <Button
+                      onClick={() => handleTrendGridGeneration(prompt)}
+                      className="w-full mt-4 bg-white/5 hover:bg-cyan-500 hover:text-black border border-white/10 group-hover:border-cyan-500 transition-all font-bold uppercase tracking-widest text-[10px] py-4"
+                    >
+                      Generate Master Design
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* MASTER GRID PREVIEW (NEW SHORTS FLOW) */}
+          {appMode === 'designer' && step === AppStep.MASTER_GRID_PREVIEW && masterGridImage && (
+            <div className="w-full max-w-5xl mx-auto flex flex-col items-center animate-slide-up pb-24">
+              <div className="flex w-full justify-between items-center mb-8">
+                <Button variant="outline" onClick={() => setStep(AppStep.TREND_PROMPT_SELECTION)} className="flex items-center gap-2">
+                  <BackIcon className="w-4 h-4" /> Back to Trends
+                </Button>
+              </div>
+
+              <div className="flex flex-col items-center gap-8 w-full">
+                <div className="text-center">
+                  <h2 className="text-3xl font-bold brand-font uppercase tracking-widest text-white mb-2">{selectedTrendPrompt?.title}</h2>
+                  <p className="text-cyan-500/60 text-xs font-mono uppercase tracking-[0.2em]">Master Grid Preview (4-View Analysis)</p>
+                </div>
+
+                <div className="relative w-full max-w-2xl bg-neutral-900 border border-white/10 rounded-xl overflow-hidden shadow-2xl glow-cyan group cursor-zoom-in"
+                  onClick={() => {
+                    const link = document.createElement("a");
+                    link.href = masterGridImage.startsWith('data:') ? masterGridImage : `data:image/png;base64,${masterGridImage}`;
+                    link.download = `Master_Grid_${selectedTrendPrompt?.title}.png`;
+                    link.click();
+                  }}
+                >
+                  <img src={masterGridImage.startsWith('data:') ? masterGridImage : `data:image/png;base64,${masterGridImage}`} className="w-full h-auto object-contain" />
+                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <p className="text-[10px] text-white text-center font-mono">Click to Download Master Grid</p>
+                  </div>
+                </div>
+
+                <div className="flex gap-4 mt-4">
+                  <Button variant="outline" onClick={() => setStep(AppStep.TREND_PROMPT_SELECTION)} className="px-8">
+                    Go Back
+                  </Button>
+                  <Button onClick={handleGridConversion} className="px-12 bg-cyan-500 text-black hover:bg-cyan-400 font-bold uppercase tracking-widest glow-cyan">
+                    Convert into Listing
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* CONCEPT SELECTION (DESIGNER) */}
           {
             step === AppStep.CONCEPT_SELECTION && (
@@ -1137,9 +1316,9 @@ const App: React.FC = () => {
 
           {/* PRODUCTION VIEW (DESIGNER) */}
           {
-            appMode === 'designer' && step === AppStep.PRODUCTION_VIEW && productionAssets && selectedConcept && (
+            appMode === 'designer' && step === AppStep.PRODUCTION_VIEW && productionAssets && (selectedConcept || selectedTrendPrompt) && (
               <div className="animate-fade-in space-y-12 pb-24">
-                <div className="text-center"><h2 className="text-5xl font-bold brand-font uppercase">{selectedConcept.title}</h2></div>
+                <div className="text-center"><h2 className="text-5xl font-bold brand-font uppercase">{selectedConcept?.title || selectedTrendPrompt?.title}</h2></div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   {[{ t: "Front", i: productionAssets.front }, { t: "Back", i: productionAssets.back }, { t: "Side", i: productionAssets.side }, { t: "Detail", i: productionAssets.closeup }].map((item, idx) => (
                     <div key={idx} className="space-y-3 p-4 bg-neutral-900 border border-white/5">
@@ -1150,7 +1329,7 @@ const App: React.FC = () => {
                           </div>
                         )}
                         <img src={`data:image/png;base64,${item.i}`} className="w-full h-full object-contain" />
-                        <button onClick={(e) => handleDownload(e, item.i, `${selectedConcept.title}_${item.t}`)} className="absolute top-2 right-2 p-2 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity"><DownloadIcon /></button>
+                        <button onClick={(e) => handleDownload(e, item.i, `${selectedConcept?.title || selectedTrendPrompt?.title}_${item.t}`)} className="absolute top-2 right-2 p-2 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity"><DownloadIcon /></button>
                       </div>
 
                       <div className="space-y-2 pt-2 border-t border-white/5">
@@ -1165,7 +1344,7 @@ const App: React.FC = () => {
                           className="text-xs uppercase tracking-widest py-3"
                           fullWidth
                           disabled={!assetPrompts[item.t] || regeneratingAssets[item.t]}
-                          onClick={() => handleRegenerateAsset(item.t, selectedConcept.description)}
+                          onClick={() => handleRegenerateAsset(item.t, selectedConcept?.description || selectedTrendPrompt?.description || "")}
                         >
                           {regeneratingAssets[item.t] ? 'Processing...' : `Regenerate ${item.t}`}
                         </Button>
@@ -1196,7 +1375,7 @@ const App: React.FC = () => {
                     className="uppercase tracking-widest py-4"
                     fullWidth
                     disabled={!assetPrompts['Lifestyle'] || regeneratingAssets['Lifestyle']}
-                    onClick={() => handleRegenerateAsset('Lifestyle', selectedConcept.description)}
+                    onClick={() => handleRegenerateAsset('Lifestyle', selectedConcept?.description || selectedTrendPrompt?.description || "")}
                   >
                     {regeneratingAssets['Lifestyle'] ? 'Processing Scene...' : 'Update Lifestyle View'}
                   </Button>
@@ -1697,6 +1876,12 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Global Modals */}
+      {showChangelog && <ChangelogModal onClose={handleCloseChangelog} />}
+      {showAdminPanel && <AdminPanel onClose={() => setShowAdminPanel(false)} />}
+      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
+      <AnnouncementPopup />
     </div>
   );
 };

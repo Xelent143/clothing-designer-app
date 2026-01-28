@@ -6,6 +6,8 @@ import DesignerApp from './DesignerApp';
 import { useAuth } from './contexts/AuthContext';
 import AccountLockedModal from './components/AccountLockedModal';
 
+import { PrivacyBanner } from './components/PrivacyBanner';
+
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     const { user, loading } = useAuth();
     if (loading) return <div>Loading...</div>; // Or your LoadingScreen
@@ -43,7 +45,8 @@ function App() {
 
     return (
         <Router>
-            <div className="min-h-screen bg-black text-white selection:bg-white/20">
+            <div className="min-h-screen bg-black text-white selection:bg-white/20 flex flex-col">
+                <PrivacyBanner />
                 {lockedReason && <AccountLockedModal reason={lockedReason} />}
                 <Routes>
                     <Route path="/" element={<LandingPage />} />

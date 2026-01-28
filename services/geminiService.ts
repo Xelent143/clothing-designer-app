@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI, SchemaType, GenerateContentResult } from "@google/generative-ai";
-import { AppStep, Gender, CATEGORIES, Concept, ProductionAssets, UserProfile, SOCCER_PRESETS, AppMode, BANNER_PRESETS, ASPECT_RATIOS, HOLIDAY_PRESETS, PUFFER_JACKET_PRESETS, BASEBALL_PRESETS, ICE_HOCKEY_PRESETS, BASKETBALL_PRESETS, WINDBREAKER_PRESETS, CHEER_PRESETS, ACTIVEWEAR_PRESETS, MMA_RASHGUARD_PRESETS, BOXING_GLOVE_PRESETS, AMERICAN_FOOTBALL_PRESETS, TRACKSUIT_PRESETS, AI_MODEL_ETHNICITY, AI_MODEL_AGE, AI_MODEL_SCENE, AI_MODEL_ACTION, TechPackData, SourcingTechPackData, CustomizationParams, SocialPlatform } from '../types';
+import { AppStep, Gender, CATEGORIES, Concept, ProductionAssets, UserProfile, SOCCER_PRESETS, AppMode, BANNER_PRESETS, ASPECT_RATIOS, HOLIDAY_PRESETS, PUFFER_JACKET_PRESETS, BASEBALL_PRESETS, ICE_HOCKEY_PRESETS, BASKETBALL_PRESETS, WINDBREAKER_PRESETS, CHEER_PRESETS, ACTIVEWEAR_PRESETS, MMA_RASHGUARD_PRESETS, BOXING_GLOVE_PRESETS, AMERICAN_FOOTBALL_PRESETS, TRACKSUIT_PRESETS, AI_MODEL_ETHNICITY, AI_MODEL_AGE, AI_MODEL_SCENE, AI_MODEL_ACTION, TechPackData, SourcingTechPackData, CustomizationParams, SocialPlatform, TrendPrompt } from '../types';
 import { Profile } from "../contexts/AuthContext";
 
 // MODELS
@@ -925,4 +925,145 @@ export const generateSocialPost = async (
     console.error("Social Post Generation Failed", error);
     throw error;
   }
+};
+
+export const generateTrendPrompts = async (category: string, gender: string, style?: string, apiKey?: string, market: string = 'USA'): Promise<TrendPrompt[]> => {
+  const ai = getClient(apiKey);
+
+  // Randomizers to force variety
+  const subCultures = ["Cyberpunk", "Vintage 90s Sport", "Gorpcore", "Neo-Luxury", "Eco-Futurism", "Post-Apocalyptic", "High-Tech Utility", "Skate Culture", "Y2K Digital", "Avant-Garde Minimal"];
+  const subCulture = subCultures[Math.floor(Math.random() * subCultures.length)];
+
+  const prompt = `Act as a Global Fashion Trend Analyst specializing in the ${market} Market.
+  
+  RESEARCH PHASE:
+  1. Analyze current 2026 fashion trends specifically within the ${market} region for the "${category}" industry.
+     (e.g., If "MMA" + "Asia": Focus on Thai/Japanese martial arts aesthetics. If "Shorts" + "USA": Focus on American basketball/street culture.)
+  2. Identify key colors, cuts, and materials popular in ${market} right now.
+  
+  DESIGN TASK:
+  Generate 5 distinct, high-fashion design concepts for ${gender} ${category} tailored for the ${market} market.
+  
+  STRICT CONSTRAINT: 
+  - The CORE garment must be "${category}". Do NOT generate jackets, coats, or full outfits unless they are secondary styling elements. 
+  - If the category is "Shorts", every concept must focus on the design of the SHORTS themselves (cut, length, fabric, details).
+  
+  CORE DIRECTIVE:
+  - Focus on "Practical Innovation": Designs must be wearable but use "Wild" patterns, cuts, or material mixes typical of ${market} high-fashion.
+  - Vibe Injection: Infuse elements of ${subCulture} into the mix to ensure unique flavor.
+  - ${style ? `User Style Influence: ${style}` : 'Avoid generic basics.'}
+  
+  Return a JSON array of 5 objects with:
+  - id: number (1-5)
+  - title: string (Creative name reflecting ${market} culture)
+  - description: string (Highly detailed visual prompt for an image generator. Start with "A pair of ${category}..." to ensure focus. Specify fit, fabric weights, color palettes, and specific graphic placements based on your ${market} research.).
+  `;
+
+  try {
+    const response = await generateWithFallback(
+      ai,
+      TEXT_MODEL,
+      'gemini-pro',
+      { parts: [{ text: prompt }] },
+      {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: SchemaType.ARRAY,
+          items: {
+            type: SchemaType.OBJECT,
+            properties: {
+              id: { type: SchemaType.INTEGER },
+              title: { type: SchemaType.STRING },
+              description: { type: SchemaType.STRING }
+            },
+            required: ["id", "title", "description"]
+          }
+        }
+      }
+    );
+    const text = response.response.text().replace(/```json/g, '').replace(/```/g, '').trim();
+    return JSON.parse(text) as TrendPrompt[];
+  } catch (error) {
+    console.error("Trend Prompts Generation Failed", error);
+    throw error;
+  }
+};
+
+export const generateMasterGridImage = async (trendPrompt: TrendPrompt, category: string, apiKey?: string): Promise<string> => {
+  const ai = getClient(apiKey);
+  const prompt = `Fashion Design Masterpiece. Item: ${category}.
+  Concept: ${trendPrompt.description}.
+  Title: ${trendPrompt.title}.
+  
+  TASK: Create a Single High-Resolution Image containing 4 Distinct Views of this exact garment in a professional Flat Lay arrangement.
+  
+  LAYOUT CONFIGURATION (CRITICAL):
+  - Top Left: Front View
+  - Top Right: Back View
+  - Bottom Left: Side Profile
+  - Bottom Right: Close-up Texture/Detail
+  
+  The background must be a clean, neutral studio background.
+  All 4 views must represent the EXACT SAME physical garment. Consistency is paramount.
+  Photorealistic, 4K, Commercial Fashion Photography.
+  NO REAL LOGOS. Use abstract branding if needed.
+  `;
+
+  const response = await generateWithFallback(ai, IMAGE_MODEL, 'gemini-1.5-flash', { parts: [{ text: prompt }] }, { imageConfig: { aspectRatio: "1:1", imageSize: "2K" } });
+  return response.response.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data || "";
+};
+
+export const processMasterGridToAssets = async (gridImage: string, trendPrompt: TrendPrompt, category: string, apiKey?: string): Promise<ProductionAssets> => {
+  const ai = getClient(apiKey);
+  const { mimeType, data } = parseDataUrl(gridImage);
+
+  const generateView = async (viewName: string) => {
+    const prompt = `Hyper-Realistic Image Synthesis Task.
+    Input: A master grid containing multiple views of a garment.
+    Goal: Generate a standalone, PHOTOREALISTIC 2K/4K STUDIO IMAGE of the ${viewName} based on the grid reference.
+     
+    STRICT REQUIREMENTS:
+    1. SCALE & RESOLUTION: The output must be a high-fidelity close-up of the ${viewName}, not a blurry crop. Upscale details to 2K resolution.
+    2. TEXTURE & LIGHTING: Enhance fabric textures (cotton, mesh, denim, etc.) to be hyper-realistic. Use professional studio lighting (soft shadows, rim light).
+    3. CONSISTENCY: Must be EXACTLY the same garment design as shown in the grid (same colors, graphics, shape).
+    4. COMPOSITION: Center the ${viewName} on a clean neutral background.
+     
+    Design Context: ${trendPrompt.description}.`;
+
+    const response = await generateWithFallback(
+      ai,
+      IMAGE_MODEL,
+      IMAGE_MODEL,
+      { parts: [{ text: prompt }, { inlineData: { mimeType, data } }] },
+      { imageConfig: { aspectRatio: "1:1", imageSize: "2K" } }
+    );
+    return response.response.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data || gridImage;
+  };
+
+  // Generate all view assets in parallel or sequence
+  const [front, back, side, closeup] = await Promise.all([
+    generateView("Front View"),
+    generateView("Back View"),
+    generateView("Side Profile"),
+    generateView("Texture Detail") // Close up
+  ]);
+
+  // Lifestyle might need different aspect ratio
+  const lifestylePrompt = `Lifestyle Campaign Shot.
+   Model: Streetwear model wearing the garment from the provided reference.
+   Context: ${trendPrompt.description}.
+   Action: Walking/Posing naturally.
+   Environment: Urban/Studio.
+   Consistency: Must match the reference garment exactly.`;
+
+  const lifestyleRes = await generateWithFallback(
+    ai,
+    IMAGE_MODEL,
+    'gemini-1.5-flash',
+    { parts: [{ text: lifestylePrompt }, { inlineData: { mimeType, data } }] },
+    { imageConfig: { aspectRatio: "3:4" } }
+  );
+  const lifestyle = lifestyleRes.response.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data || "";
+
+  return { front, back, side, closeup, lifestyle };
 };

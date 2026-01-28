@@ -19,7 +19,12 @@ export enum AppStep {
   TECHPACK_SOU_RESULTS = 'techpack_sou_results',
   SOCIAL_STUDIO_INPUT = 'social_studio_input',
   SOCIAL_STUDIO_RESULTS = 'social_studio_results',
+  TREND_PROMPT_SELECTION = 'TREND_PROMPT_SELECTION',
+  MASTER_GRID_PREVIEW = 'MASTER_GRID_PREVIEW',
+  MARKET_SELECTION = 'MARKET_SELECTION',
 }
+
+export type MarketRegion = 'USA' | 'Europe' | 'Asia' | 'Australia';
 
 export interface CustomizationParams {
   mode: 'autopilot' | 'custom';
@@ -137,6 +142,12 @@ export interface Concept {
   title: string;
   description: string;
   imageBase64: string;
+}
+
+export interface TrendPrompt {
+  id: number;
+  title: string;
+  description: string;
 }
 
 export interface ProductionAssets {
