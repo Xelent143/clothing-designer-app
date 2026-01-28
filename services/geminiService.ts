@@ -425,12 +425,8 @@ export const generateConceptImage = async (conceptDesc: string, category: string
     parts.push({ text: imagePrompt });
   }
 
-<<<<<<< HEAD
   const preferredModel = getPreferredImageModel() === 'secondary' ? SECONDARY_IMAGE_MODEL : IMAGE_MODEL;
   const response = await generateWithFallback(ai, preferredModel, SECONDARY_IMAGE_MODEL, { parts }, { imageConfig: { aspectRatio: "4:3" } });
-=======
-  const response = await generateWithFallback(ai, IMAGE_MODEL, 'gemini-2.5-flash-image', { parts }, { imageConfig: { aspectRatio: "4:3" } });
->>>>>>> a56112030e92884ccee3f7958ae9af887c533a9f
   return response.response.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data || "";
 };
 
